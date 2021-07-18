@@ -128,11 +128,15 @@ class Broker:
 
     def recv_register1(self):
         register_message_raw = self.register_socket.recv_string()
+        topic = register_message_raw.split(" ")[1]
         print("Request for registry received!")# + register_message_raw)
         time.sleep(1)
         response_message = self.respond_registry1(register_message_raw)
         print("Response sent: " + response_message)
         self.register_socket.send_string(response_message)
+        if "Sub" in response_message:
+            hist_data = topic + (' ').join(self.history[topic])
+            self.register_socket.send_string(hist_data)
         return
 
     #could have just checked for option in this function and called respond registry based on which one; oh well
@@ -193,7 +197,6 @@ class Broker:
             return "ERROR: no arguments in request"
         print(register_message_parsed)
         if (register_message_parsed[0] == "SUB"):
-            
             return "ACCEPT: Registered Sub with option 1"
         elif (register_message_parsed[0] == "PUB"):
             self.register_pub(register_message_parsed[1], register_message_parsed[2])
