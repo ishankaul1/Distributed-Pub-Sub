@@ -16,7 +16,6 @@ class Broker:
         self.election_path = "/broker_elect"
         self.ip = netifaces.ifaddresses(netifaces.interfaces()[1])[netifaces.AF_INET][0]['addr']
         self.zk = self.start_zkclient(zkserver)
-        self.history = {}
 
         if (self.option == 1):
             #dict to match each topic with a list of assiciated publishers
@@ -128,15 +127,14 @@ class Broker:
 
     def recv_register1(self):
         register_message_raw = self.register_socket.recv_string()
-        topic = register_message_raw.split(" ")[1]
+        #message should come in format: "<pub|sub> <topic> <address>"
         print("Request for registry received!")# + register_message_raw)
+        #register_message_parsed = register_message_raw.split(" ")
+        #print(register_message_parsed)
         time.sleep(1)
         response_message = self.respond_registry1(register_message_raw)
         print("Response sent: " + response_message)
         self.register_socket.send_string(response_message)
-        if "Sub" in response_message:
-            hist_data = topic + (' ').join(self.history[topic])
-            self.register_socket.send_string(hist_data)
         return
 
     #could have just checked for option in this function and called respond registry based on which one; oh well
@@ -153,11 +151,13 @@ class Broker:
         print("Message received: " + message_from_publisher)
         #Validating data received from publisher
         (topic, pub_ip, data) = message_from_publisher.split(":")
-        if topic not in self.history:
-            self.history[topic] = []
-        self.history[topic].append(data)
-        if len(self.history[topic]) > 5:
-            self.history[topic].pop(0)
+        #if topic not in self.publishers:
+        #    print("ERROR: Topic not registered, data cannot be published")
+        #    self.subscribing_socket.send_string("Register before publishing data")
+        #    return
+        #if pub_ip not in self.publishers[topic]:
+        #    print("ERROR: Publisher not registered under topic, data cannot be published")
+        #    return
         self.publish_data(topic, data)
         self.subscribing_socket.send_string("Data published")
         return
