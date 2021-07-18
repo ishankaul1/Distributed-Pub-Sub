@@ -3,6 +3,7 @@ import zmq
 import time
 import netifaces
 from kazoo.client import KazooClient
+import netifaces
 
 class Publisher:
     def __init__(self, zookeeper_ip, topic):
@@ -18,7 +19,8 @@ class Publisher:
         self.option = None #dissemination option - gets decided upon receiving response from broker registration
         #self.connected_sockets = {} #for extending to connecting to multiple brokers
         self.broker_znode = "/broker"
-        self.history = [] 
+        self.history_len = None
+        self.rolling_history = []
 
         self.zk = self.start_zkclient(zookeeper_ip)
         self.start()
@@ -52,7 +54,11 @@ class Publisher:
             self.registration_socket.connect(connect_str)
 
 
-    def register(self):
+    def register(self, history_len):
+        if (history_len < 1):
+            print("Cannot hold a history of length < 1")
+            return
+        self.history_len = history_len
         self.registration_socket = self.context.socket(zmq.REQ)
         connect_str = "tcp://" + self.broker_ip + ":5555"
         self.registration_socket.connect(connect_str)
@@ -89,16 +95,29 @@ class Publisher:
         self.publishing_socket.bind(connect_str)
 
     def publish(self, data):
+        #new_socket = self.context.socket(zmq.REQ)
+        #connect_str = "tcp://" + self.broker_ip + ":5556"
+        #new_socket.connect(connect_str)
+
         if (self.option != 1 and self.option != 2):
             print("ERROR: Option not set correctly. Can't publish")
-            return
+            
+            
+        #append to history
+        self.rolling_history.append(data)
+        if len(self.rolling_history > self.history_len):
+            #history at max capacity; slice off first value to maintain desired size of window
+            self.rolling_history = self.rolling_history[1:]
 
-        #Storing and Sending data to be published
-        self.history.append(data)
-        if len(self.history) > 7:
-            self.history.pop(0)
-        pub_str = self.topic + ":" + self.ip + ":" + data
-        print("Sending topic: " + self.topic + " and data: " + data + " to " + self.broker_ip )
+        if (len(self.rolling_history > 1)):
+            window_data = self.rolling_history.join(',')
+        else:
+            window_data = self.rolling_history[1]
+
+
+        #Sending data to be published
+        pub_str = self.topic + ":" + self.ip + ":" + window_data
+        print("Sending topic: " + self.topic + " and data: " + window_data + " to " + self.broker_ip )
         self.publishing_socket.send_string(pub_str)
         #recreate publishing socket
         if (self.option == 1):
@@ -107,6 +126,15 @@ class Publisher:
     def getTopic(self):
         return self.topic
 
+        #publish_response = new_socket.recv_string()
+        #print(publish_response)
+    
+    #def run(self):
+    #    if self.validate_input():
+    #        if sys.argv[1] == "register":
+    #            self.register(self.broker_ip, self.topic)
+    #        elif sys.argv[1] == "publish":
+    #            self.publish(self.broker_ip, self.topic, self.data)
 
 
 def validate_input():
@@ -114,6 +142,20 @@ def validate_input():
     if len(sys.argv) < 3:
         print(usage)
         sys.exit(1)
+    #elif (sys.argv[1] == "publish" and len(sys.argv) < 5):
+    #    print("data is needed for publishing")
+    #    sys.exit(1)
+        
+    #if sys.argv[1] == "register":
+    #    self.action = sys.argv[1]
+    #    self.broker_ip = sys.argv[2]
+    #    self.topic = sys.argv[3]
+    #elif sys.argv[1] == "publish":
+    #    self.action = sys.argv[1]
+    #    self.broker_ip = sys.argv[2]
+    #    self.topic = sys.argv[3]
+    #    self.data =sys.argv[4]
+    #return True
 
 
 def main():
@@ -122,12 +164,21 @@ def main():
     #test_publisher.register()
     input_str = ""
     number = 100
-    while("true"):
+    while(input_str != "exit"):
+        #input_str = input("Enter data to be sent on topic '" + test_publisher.getTopic() + "', or type 'exit' to disconnect:\n")
         input_str = test_publisher.getTopic() + str(number)
         number = number + 111
         time.sleep(10)
-        test_publisher.publish(input_str)
+        if (input_str != "exit"):
+            test_publisher.publish(input_str)
 
     print("Disconnected")
+    # test_publisher.register("localhost", "porcupines")
+    # test_publisher.register("localhost", "dunder")
+    # # test_publisher.register("localhost", "tesla")
+    # # test_publisher.register("localhost", "jolt")
+    # test_publisher.publish("localhost", "porcupines", "test1")
+    # test_publisher.publish("localhost", "dunder", "test1")
+    # test_publisher.publish("localhost", "porc", "test1")
 
 main()

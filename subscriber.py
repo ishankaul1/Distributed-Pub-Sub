@@ -20,6 +20,7 @@ class Subscriber:
         self.broker_znode = "/broker"
         self.zk = self.start_zkclient(zookeeper_ip)
         self.subscribing_socket = None #used in opt1
+        self.history_len = None
         
 
         
@@ -62,7 +63,11 @@ class Subscriber:
 
     #register with a broker. should be designed extensibly st this subscriber shcan register with several brokers?
     #to do after testing: create new subscription socket that now listens for info
-    def register(self):
+    def register(self, history_len):
+        if (history_len < 1):
+            print("Cannot receive a history of length < 1")
+            return
+        self.history_len = history_len
         #connect to the broker
         new_socket = self.context.socket(zmq.REQ)
         connect_str = "tcp://" + self.broker_ip + ":5555"
@@ -106,7 +111,21 @@ class Subscriber:
             time.sleep(10)
             try:
                 subs_data = self.subscribing_socket.recv_string( flags = zmq.NOBLOCK )
-                print(subs_data.split())
+                topic, raw_data = subs_data.split()
+                if (',' in raw_data):
+                    data = raw_data.split(',')
+                else:
+                    data = [raw_data]
+                if (len(raw_data) < self.history_len):
+                    #publisher sending less history than we're asking for; just take it all
+                    print("Data received from topic '" + topic + "':")
+                    print(data.join(','))
+                else:
+                    #must only keep the last 'history_len' values
+                    data = data[-self.history_len:]
+                    print("Data received from topic '" + topic + "':")
+                    print(data.join(','))
+
             except zmq.ZMQError as e:
                 if e.errno == zmq.EAGAIN:
                     pass
