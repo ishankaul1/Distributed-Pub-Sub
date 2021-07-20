@@ -46,7 +46,7 @@ class Subscriber:
             #print(self.zk.get(self.broker_znode))
             self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
             print("Received broker ip from zookeeper: " + self.broker_ip)
-            self.register(5)
+            self.register(3)
             
 
     def watch_broker_znode_change(self):
@@ -205,7 +205,8 @@ class Subscriber:
     #TODO: option 2 - receive data from a publisher
     def recv_sub_socket(self, socket):
         subs_data = socket.recv_string(zmq.DONTWAIT)
-        topic, raw_data = subs_data.split()
+        print(subs_data)
+        topic,ip,raw_data = subs_data.split(':')
         if (',' in raw_data):
             data = raw_data.split(',')
         else:
