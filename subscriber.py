@@ -46,7 +46,7 @@ class Subscriber:
             #print(self.zk.get(self.broker_znode))
             self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
             print("Received broker ip from zookeeper: " + self.broker_ip)
-            self.register(4)
+            self.register(5)
             
 
     def watch_broker_znode_change(self):
@@ -119,12 +119,12 @@ class Subscriber:
                 if (len(raw_data) < self.history_len):
                     #publisher sending less history than we're asking for; just take it all
                     print("Data received from topic '" + topic + "':")
-                    print(data.join(','))
+                    print(','.join(data))
                 else:
                     #must only keep the last 'history_len' values
                     data = data[-self.history_len:]
                     print("Data received from topic '" + topic + "':")
-                    print(data.join(','))
+                    print(','.join(data))
 
             except zmq.ZMQError as e:
                 if e.errno == zmq.EAGAIN:

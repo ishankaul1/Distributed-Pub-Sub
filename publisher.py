@@ -105,14 +105,14 @@ class Publisher:
             
         #append to history
         self.rolling_history.append(data)
-        if len(self.rolling_history > self.history_len):
+        if len(self.rolling_history) > self.history_len:
             #history at max capacity; slice off first value to maintain desired size of window
             self.rolling_history = self.rolling_history[1:]
 
-        if (len(self.rolling_history > 1)):
-            window_data = self.rolling_history.join(',')
+        if (len(self.rolling_history) > 1):
+            window_data = ','.join(self.rolling_history)
         else:
-            window_data = self.rolling_history[1]
+            window_data = self.rolling_history[0]
 
 
         #Sending data to be published
