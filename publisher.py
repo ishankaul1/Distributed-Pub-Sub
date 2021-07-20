@@ -116,8 +116,8 @@ class Publisher:
 
 
         #Sending data to be published
-        pub_str = self.topic + ":" + self.ip + ":" + window_data
-        print("Sending topic: " + self.topic + " and data: " + window_data + " to " + self.broker_ip )
+        pub_str = self.topic + ":" + window_data
+        print("Publishing topic: " + self.topic + " and data: " + window_data)
         self.publishing_socket.send_string(pub_str)
         #recreate publishing socket
         if (self.option == 1):

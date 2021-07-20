@@ -146,11 +146,15 @@ class Broker:
         print("Response sent: " + response_message)
         self.register_socket.send_string(response_message)
 
+    #Literally just forwards the data
     def recv_subscribing1(self):
         message_from_publisher = self.subscribing_socket.recv_string()
         print("Message received: " + message_from_publisher)
+        print("Publishing data...")
+        self.publishing_socket.send_string(message_from_publisher)
+        print("Published!!")
         #Validating data received from publisher
-        (topic, pub_ip, data) = message_from_publisher.split(":")
+        #(topic, data) = message_from_publisher.split(":")
         #if topic not in self.publishers:
         #    print("ERROR: Topic not registered, data cannot be published")
         #    self.subscribing_socket.send_string("Register before publishing data")
@@ -158,15 +162,15 @@ class Broker:
         #if pub_ip not in self.publishers[topic]:
         #    print("ERROR: Publisher not registered under topic, data cannot be published")
         #    return
-        self.publish_data(topic, data)
-        self.subscribing_socket.send_string("Data published")
+        #self.publish_data(topic, data)
+        #self.subscribing_socket.send_string("Data published")
         return
     
-    def publish_data(self, topic, data):
-        print("Publishing data")
-        pub_str = topic + ":" + data
-        self.publishing_socket.send_string("%s %s" %(topic, data))
-        return
+    #def publish_data(self, topic, data):
+    #    print("Publishing data")
+    #    pub_str = topic + ":" + data
+    #    self.publishing_socket.send_string("%s %s" %(topic, data))
+    #    return
 
     #poll for actions. Possibilities are:
     #   1) register a publisher

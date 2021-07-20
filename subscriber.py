@@ -111,7 +111,7 @@ class Subscriber:
             time.sleep(10)
             try:
                 subs_data = self.subscribing_socket.recv_string( flags = zmq.NOBLOCK )
-                topic, raw_data = subs_data.split()
+                topic, raw_data = subs_data.split(':')
                 if (',' in raw_data):
                     data = raw_data.split(',')
                 else:
@@ -206,7 +206,7 @@ class Subscriber:
     def recv_sub_socket(self, socket):
         subs_data = socket.recv_string(zmq.DONTWAIT)
         print(subs_data)
-        topic,ip,raw_data = subs_data.split(':')
+        topic,raw_data = subs_data.split(':')
         if (',' in raw_data):
             data = raw_data.split(',')
         else:
