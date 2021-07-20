@@ -163,7 +163,7 @@ class Broker:
         #    print("ERROR: Publisher not registered under topic, data cannot be published")
         #    return
         #self.publish_data(topic, data)
-        #self.subscribing_socket.send_string("Data published")
+        self.subscribing_socket.send_string("Data published")
         return
     
     #def publish_data(self, topic, data):
