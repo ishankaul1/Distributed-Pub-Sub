@@ -204,8 +204,21 @@ class Subscriber:
     
     #TODO: option 2 - receive data from a publisher
     def recv_sub_socket(self, socket):
-        message = socket.recv_string(zmq.DONTWAIT)
-        print(message.split(':'))
+        subs_data = socket.recv_string(zmq.DONTWAIT)
+        topic, raw_data = subs_data.split()
+        if (',' in raw_data):
+            data = raw_data.split(',')
+        else:
+            data = [raw_data]
+        if (len(raw_data) < self.history_len):
+            #publisher sending less history than we're asking for; just take it all
+            print("Data received from topic '" + topic + "':")
+            print(','.join(data))
+        else:
+            #must only keep the last 'history_len' values
+            data = data[-self.history_len:]
+            print("Data received from topic '" + topic + "':")
+            print(','.join(data))
     
     def parse_publisher_list(self, publisher_list_raw):
         if (',' in publisher_list_raw):
