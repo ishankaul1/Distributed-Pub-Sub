@@ -6,44 +6,55 @@ from kazoo.client import KazooClient
 import netifaces
 
 class Publisher:
-    def __init__(self, zookeeper_ip, topic):
+    def __init__(self, zookeeper_ip):
         self.context = zmq.Context()
 
         self.ip = netifaces.ifaddresses(netifaces.interfaces()[1])[netifaces.AF_INET][0]['addr']
         self.broker_ip = None#broker_ip
         #self.data = ""
         self.zookeeper_ip = zookeeper_ip
-        self.topic = topic
+        self.topics = []
         self.registration_socket = None
         self.publishing_socket = None
         self.option = None #dissemination option - gets decided upon receiving response from broker registration
         #self.connected_sockets = {} #for extending to connecting to multiple brokers
         self.broker_znode = "/broker"
-        self.history_len = None
-        self.rolling_history = []
+        self.topic_historylen_dict = {}
+        self.topic_rollinghistory_dict = {}
 
-        self.zk = self.start_zkclient(zookeeper_ip)
-        self.start()
+        self.start_zk()
+        #self.start()
 
 
-    def start_zkclient(self, zkserver):
+    def start_zk(self):
         port = '2181'
-        url = f'{zkserver}:{port}'
+        url = f'{self.zkserver}:{port}'
         print(f"connecting to ZK server on '{url}'")
-        zk = KazooClient(hosts=url)
-        zk.start()
-        return zk
-
-    def start(self):
-        print(f"Publisher: {self.ip}")
+        self.zk = KazooClient(hosts=url)
+        self.zk.start()
+        print("Zkclient started!\n")
+        print(f"Publisher: {self.ip}\n")
         #look for broker ip
         if (self.zk.exists(self.broker_znode)):
             #print(self.zk.get(self.broker_znode))
             self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
             print("Received broker ip from zookeeper: " + self.broker_ip)
-            self.register(4)
+            self.connect_register_socket()
+            # self.registration_socket = self.context.socket(zmq.REQ)
+            # connect_str = "tcp://" + self.broker_ip + ":5555"
+            # self.registration_socket.connect(connect_str)
+            print("Connected to broker\n")
+            if (self.option == 1):
+                self.create_publishing_socket1()
+            else:
+                self.create_publishing_socket2()
+            #self.register(4)
             self.watch_broker_znode_change()
             
+    def connect_register_socket(self):
+        self.registration_socket = self.context.socket(zmq.REQ)
+        connect_str = "tcp://" + self.broker_ip + ":5555"
+        self.registration_socket.connect(connect_str)
 
     def watch_broker_znode_change(self):
         @self.zk.DataWatch(self.broker_znode)
@@ -54,35 +65,43 @@ class Publisher:
             self.registration_socket.connect(connect_str)
 
 
-    def register(self, history_len):
+    def register(self, topic, history_len):
+        if topic in self.topics:
+            print("Already registered to topic")
+            return
         if (history_len < 1):
             print("Cannot hold a history of length < 1")
             return
-        self.history_len = history_len
-        self.registration_socket = self.context.socket(zmq.REQ)
-        connect_str = "tcp://" + self.broker_ip + ":5555"
-        self.registration_socket.connect(connect_str)
+    
+        # self.registration_socket = self.context.socket(zmq.REQ)
+        # connect_str = "tcp://" + self.broker_ip + ":5555"
+        # self.registration_socket.connect(connect_str)
 
         #send registration request to broker. Format: "PUB <topic> <my_ip>"
         req_str = "PUB " + self.topic + " " + self.ip
-        print("sending request for registration: " + req_str)
+        print("Sending request for registration: " + req_str)
         self.registration_socket.send_string(req_str)
 
         rep_message = self.registration_socket.recv_string()
 
         if ("ACCEPT: Registered Pub" in rep_message):
+            self.topics.append(topic)
+            self.topic_historylen_dict[topic] = history_len
             #registry good
-            print("Registry Accepted! Creating new publishing socket...")
+            print("Registry Accepted! Can now publish to topic '" + topic + "'")
             #TO DO: parse out last char, set option, and use to decide type of socket
-            self.option = int(rep_message[-1])
+            if self.option is None:
+                self.option = int(rep_message[-1])
             
-            if (self.option == 1):
-                self.create_publishing_socket1()
-            else:
-                self.create_publishing_socket2()
+            #if (self.publishing_socket is None):
+            #    if (self.option == 1):
+            #        self.create_publishing_socket1()
+            #    else:
+            #        self.create_publishing_socket2()
             #self.create_publishing_socket()
         else:
             print("Error. Response: " + rep_message)
+        self.connect_register_socket() #have to reconnect
     
     def create_publishing_socket1(self):
         self.publishing_socket = self.context.socket(zmq.REQ)
@@ -94,25 +113,36 @@ class Publisher:
         connect_str = "tcp://*:5556" #might have to change to own ip? not sure
         self.publishing_socket.bind(connect_str)
 
-    def publish(self, data):
+    def publish(self, topic, data):
         #new_socket = self.context.socket(zmq.REQ)
         #connect_str = "tcp://" + self.broker_ip + ":5556"
         #new_socket.connect(connect_str)
 
         if (self.option != 1 and self.option != 2):
-            print("ERROR: Option not set correctly. Can't publish")
-            
-            
-        #append to history
-        self.rolling_history.append(data)
-        if len(self.rolling_history) > self.history_len:
-            #history at max capacity; slice off first value to maintain desired size of window
-            self.rolling_history = self.rolling_history[1:]
+            print("ERROR: Option not set correctly. Can't publish\n")
+            return
+        if (topic not in self.topics):
+            print("ERROR: Topic not been registered. Can't publish\n")
+            return
+        if (self.publishing_socket is None):
+            print("ERROR: Publishing socket not yet created")
 
-        if (len(self.rolling_history) > 1):
+   
+        #append to history
+        if (topic not in self.topic_rollinghistory_dict):
+            self.topic_rollinghistory_dict[topic] = [data]
+            window_data = self.topic_rollinghistory_dict[topic][0]
+        else: 
+            self.topic_rollinghistory_dict[topic].append(data)
+            if len(self.topic_rollinghistory_dict[topic]) > self.topic_historylen_dict[topic]:
+            #history at max capacity; slice off first value to maintain desired size of window
+                self.topic_rollinghistory_dict[topic] = self.topic_rollinghistory_dict[topic][1:]
             window_data = ','.join(self.rolling_history)
-        else:
-            window_data = self.rolling_history[0]
+        
+        # if (len(self.rolling_history) > 1):
+        #     window_data = ','.join(self.rolling_history)
+        # else:
+        #     window_data = self.rolling_history[0]
 
 
         #Sending data to be published
@@ -123,8 +153,8 @@ class Publisher:
         if (self.option == 1):
             self.create_publishing_socket1()
 
-    def getTopic(self):
-        return self.topic
+    #def getTopic(self):
+    #    return self.topic
 
         #publish_response = new_socket.recv_string()
         #print(publish_response)
@@ -138,8 +168,8 @@ class Publisher:
 
 
 def validate_input():
-    usage = "python3 publisher.py <broker ip> <topic>"
-    if len(sys.argv) < 3:
+    usage = "python3 publisher.py <broker ip>"
+    if len(sys.argv) < 2:
         print(usage)
         sys.exit(1)
     #elif (sys.argv[1] == "publish" and len(sys.argv) < 5):
@@ -157,22 +187,30 @@ def validate_input():
     #    self.data =sys.argv[4]
     #return True
 
-
+#Treat as a unit test
 def main():
     validate_input()
-    test_publisher = Publisher(sys.argv[1], sys.argv[2])
+    
+    test_publisher = Publisher(sys.argv[1])
+
+    test_publisher.register('test1', 4)
+    test_publisher.register('test2', 6)
     #test_publisher.register()
-    input_str = ""
+    #input_str = ""
     number = 100
-    while(input_str != "exit"):
+    while True:#(input_str != "exit"):
         #input_str = input("Enter data to be sent on topic '" + test_publisher.getTopic() + "', or type 'exit' to disconnect:\n")
-        input_str = test_publisher.getTopic() + str(number)
+        input_str = 'test1' + str(number)
+        test_publisher.publish('test1', input_str)
+        input_str = 'test2' + str(number)
+        test_publisher.publish('test2', input_str)
+
         number = number + 111
         time.sleep(10)
-        if (input_str != "exit"):
-            test_publisher.publish(input_str)
+        #if (input_str != "exit"):
+        
 
-    print("Disconnected")
+    #print("Disconnected")
     # test_publisher.register("localhost", "porcupines")
     # test_publisher.register("localhost", "dunder")
     # # test_publisher.register("localhost", "tesla")
