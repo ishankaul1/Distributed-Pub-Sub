@@ -28,7 +28,7 @@ class Publisher:
 
     def start_zk(self):
         port = '2181'
-        url = f'{self.zkserver}:{port}'
+        url = f'{self.zookeeper_ip}:{port}'
         print(f"connecting to ZK server on '{url}'")
         self.zk = KazooClient(hosts=url)
         self.zk.start()
@@ -78,7 +78,7 @@ class Publisher:
         # self.registration_socket.connect(connect_str)
 
         #send registration request to broker. Format: "PUB <topic> <my_ip>"
-        req_str = "PUB " + self.topic + " " + self.ip
+        req_str = "PUB " + topic + " " + self.ip
         print("Sending request for registration: " + req_str)
         self.registration_socket.send_string(req_str)
 
@@ -137,7 +137,7 @@ class Publisher:
             if len(self.topic_rollinghistory_dict[topic]) > self.topic_historylen_dict[topic]:
             #history at max capacity; slice off first value to maintain desired size of window
                 self.topic_rollinghistory_dict[topic] = self.topic_rollinghistory_dict[topic][1:]
-            window_data = ','.join(self.rolling_history)
+            window_data = ','.join(self.topic_rollinghistory_dict[topic])
         
         # if (len(self.rolling_history) > 1):
         #     window_data = ','.join(self.rolling_history)
@@ -146,8 +146,8 @@ class Publisher:
 
 
         #Sending data to be published
-        pub_str = self.topic + ":" + window_data
-        print("Publishing topic: " + self.topic + " and data: " + window_data)
+        pub_str = topic + ":" + window_data
+        print("Publishing topic: " + topic + " and data: " + window_data)
         self.publishing_socket.send_string(pub_str)
         #recreate publishing socket
         if (self.option == 1):
