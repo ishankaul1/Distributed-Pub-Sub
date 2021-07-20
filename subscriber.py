@@ -46,7 +46,7 @@ class Subscriber:
             #print(self.zk.get(self.broker_znode))
             self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
             print("Received broker ip from zookeeper: " + self.broker_ip)
-            self.register()
+            self.register(4)
             
 
     def watch_broker_znode_change(self):
