@@ -58,12 +58,15 @@ class Publisher:
             print(f"Broker IP changed to " + self.broker_ip)
             connect_str = "tcp://" + self.broker_ip + ":5555"
             self.registration_socket.connect(connect_str)
+            #re-register so that new broker knows what topics and pubs are subscribed
+            for topic in self.topics:
+                self.register(topic, self.topic_historylen_dict[topic])
 
 
     def register(self, topic, history_len):
-        if topic in self.topics:
-            print("Already registered to topic")
-            return
+        #if topic in self.topics:
+        #    print("Already registered to topic")
+        #    return
         if (history_len < 1):
             print("Cannot hold a history of length < 1")
             return
@@ -77,8 +80,9 @@ class Publisher:
 
         if ("ACCEPT: Registered Pub" in rep_message):
             #Able to register to this topic
-            self.topics.append(topic)
-            self.topic_historylen_dict[topic] = history_len
+            if (topic not in self.topics):
+                self.topics.append(topic)
+                self.topic_historylen_dict[topic] = history_len
             print("Registry Accepted! Can now publish to topic '" + topic + "'")
             #Get type of socket from response if not already determined
             if self.option is None:
