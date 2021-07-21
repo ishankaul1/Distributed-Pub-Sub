@@ -3,6 +3,7 @@ import zmq
 import time
 import netifaces
 from kazoo.client import KazooClient
+import netifaces
 
 class Publisher:
     def __init__(self, zookeeper_ip, topic):
@@ -18,7 +19,7 @@ class Publisher:
         self.option = None #dissemination option - gets decided upon receiving response from broker registration
         #self.connected_sockets = {} #for extending to connecting to multiple brokers
         self.broker_znode = "/broker"
-        self.history = [] 
+        self.publish_znode = self.broker_znode + '/' + self.topic
 
         self.zk = self.start_zkclient(zookeeper_ip)
         self.start()
@@ -41,7 +42,16 @@ class Publisher:
             print("Received broker ip from zookeeper: " + self.broker_ip)
             self.register()
             self.watch_broker_znode_change()
-            
+            print("now doing publish elect")
+            if not self.zk.exists(self.publish_znode):
+                self.zk.create(self.publish_znode)
+            #print("Awaiting for Election Results")
+            election = self.zk.Election(self.publish_znode, self.ip)
+            print("Contendors for election")
+            print(election.contenders())
+            election.run(self.publish)
+        else:
+            print("broker znode does not exist")
 
     def watch_broker_znode_change(self):
         @self.zk.DataWatch(self.broker_znode)
@@ -50,7 +60,6 @@ class Publisher:
             print(f"Broker IP changed to " + self.broker_ip)
             connect_str = "tcp://" + self.broker_ip + ":5555"
             self.registration_socket.connect(connect_str)
-
 
     def register(self):
         self.registration_socket = self.context.socket(zmq.REQ)
@@ -88,26 +97,27 @@ class Publisher:
         connect_str = "tcp://*:5556" #might have to change to own ip? not sure
         self.publishing_socket.bind(connect_str)
 
-    def publish(self, data):
+    def publish(self):
+        print("Publisher for %s is now %s" % (self.topic,self.ip))
         if (self.option != 1 and self.option != 2):
             print("ERROR: Option not set correctly. Can't publish")
             return
-
-        #Storing and Sending data to be published
-        self.history.append(data)
-        if len(self.history) > 7:
-            self.history.pop(0)
-        pub_str = self.topic + ":" + self.ip + ":" + data
-        print("Sending topic: " + self.topic + " and data: " + data + " to " + self.broker_ip )
-        self.publishing_socket.send_string(pub_str)
-        #recreate publishing socket
-        if (self.option == 1):
-            self.create_publishing_socket1()
+        num = 111
+        data = self.topic + str(num)
+        while(True):
+            time.sleep(10)
+        #Sending data to be published
+            pub_str = self.topic + ":" + self.ip + ":" + data
+            print("Sending topic: " + self.topic + " and data: " + data + " to " + self.broker_ip )
+            self.publishing_socket.send_string(pub_str)
+            num += 111
+            data = self.topic + str(num)
+            #recreate publishing socket
+            if (self.option == 1):
+                self.create_publishing_socket1()
 
     def getTopic(self):
         return self.topic
-
-
 
 def validate_input():
     usage = "python3 publisher.py <broker ip> <topic>"
@@ -120,13 +130,6 @@ def main():
     validate_input()
     test_publisher = Publisher(sys.argv[1], sys.argv[2])
     #test_publisher.register()
-    input_str = ""
-    number = 100
-    while("true"):
-        input_str = test_publisher.getTopic() + str(number)
-        number = number + 111
-        time.sleep(10)
-        test_publisher.publish(input_str)
 
     print("Disconnected")
 
