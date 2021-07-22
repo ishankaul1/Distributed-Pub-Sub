@@ -107,7 +107,7 @@ class Subscriber:
                 publisher_list_raw = rep_message.split('\n')[1]
                 publishers = self.parse_publisher_list(publisher_list_raw)
 
-                if len(publishers == 0):
+                if len(publishers) == 0:
                     print("No publishers on topic... try registering again")
                     return
 
@@ -236,7 +236,7 @@ class Subscriber:
     def recv_notification(self):
         notif_raw = self.notification_socket.recv_string(zmq.DONTWAIT)
         print("Notification received: " + notif_raw + "\n")
-        topic, pub_list_raw = notif_raw.split('\n')[1]
+        topic, pub_list_raw = notif_raw.split('\n')
         if (',' in pub_list_raw):
             pub_list = pub_list_raw.split(',')
         else:
@@ -249,7 +249,7 @@ class Subscriber:
             connect_str = "tcp://" + pub_ip + ":5556"
             socket.connect(connect_str)
             self.publishers[topic].append(pub_ip)
-        print("Added new publishers: " + new_publishers)
+        print("Added new publishers: " + ','.join(new_publishers))
 
     def add_pub_opt2(self, pub_ip):
         if (pub_ip in self.subscribing_sockets):
