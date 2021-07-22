@@ -19,7 +19,7 @@ class Subscriber:
 
         self.broker_znode = "/broker"
         #self.subscribing_socket = None #used in opt1
-        self.history_len = None
+        self.history_len = {} #map topics to history length
 
         self.subscribing_socket = None # in opt 1 - one socket w multiple filters
         
@@ -85,7 +85,6 @@ class Subscriber:
         if (history_len < 1):
             print("Cannot receive a history of length < 1")
             return
-        self.history_len = history_len
         
 
         #send connection message to broker. Format: "SUB <topic> <my_ip>"
@@ -96,6 +95,7 @@ class Subscriber:
         rep_message = self.registration_socket.recv_string()
 
         if ("ACCEPT: Registered Sub" in rep_message):
+            self.history_len[topic] = history_len
             #registry good
             print("Registry Accepted!") 
             #self.topic = topic
@@ -159,7 +159,7 @@ class Subscriber:
 
     def subscribe_listen1(self):
         print("Now Listening to " + self.broker_ip + " for all registered topics")
-        print("Topics: " + self.topics + "\n")
+        print("Topics: " + ','.join(self.topics) + "\n")
         #connect_str = "tcp://" + self.broker_ip + ":5557"
         #self.subscribing_socket.connect(connect_str)
         #self.subscribing_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
@@ -172,13 +172,13 @@ class Subscriber:
                     data = raw_data.split(',')
                 else:
                     data = [raw_data]
-                if (len(raw_data) < self.history_len):
+                if (len(raw_data) < self.history_len[topic]):
                     #publisher sending less history than we're asking for; just take it all
                     print("Data received from topic '" + topic + "':")
                     print(','.join(data))
                 else:
                     #must only keep the last 'history_len' values
-                    data = data[-self.history_len:]
+                    data = data[-self.history_len[topic]:]
                     print("Data received from topic '" + topic + "':")
                     print(','.join(data))
 
@@ -228,7 +228,7 @@ class Subscriber:
             #receive on each subscribing socket 
             for topic in self.subscribing_sockets:
                 if self.subscribing_sockets[topic] in events:
-                    self.recv_sub_socket(self.subscribing_sockets[topic])
+                    self.recv_sub_socket(self.subscribing_sockets[topic], topic)
         self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
         self.subscribe_listen2() 
 
@@ -264,7 +264,7 @@ class Subscriber:
             print("Connected a new subscribing socket to publisher " + pub_ip)
     
     #TODO: option 2 - receive data from a publisher
-    def recv_sub_socket(self, socket):
+    def recv_sub_socket(self, socket, topic):
         subs_data = socket.recv_string(zmq.DONTWAIT)
         print(subs_data)
         topic,raw_data = subs_data.split(':')
@@ -272,13 +272,13 @@ class Subscriber:
             data = raw_data.split(',')
         else:
             data = [raw_data]
-        if (len(raw_data) < self.history_len):
+        if (len(raw_data) < self.history_len[topic]):
             #publisher sending less history than we're asking for; just take it all
             print("Data received from topic '" + topic + "':")
             print(','.join(data))
         else:
             #must only keep the last 'history_len' values
-            data = data[-self.history_len:]
+            data = data[-self.history_len[topic]:]
             print("Data received from topic '" + topic + "':")
             print(','.join(data))
     
