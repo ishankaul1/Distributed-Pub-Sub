@@ -22,6 +22,11 @@ class Publisher:
         self.topic_historylen_dict = {}
         self.topic_rollinghistory_dict = {}
 
+        self.topics_path = "/topics" #one znode per topic, underneath which each topic
+        #has 1 child per publisher registered to it. Calculate ownership strength in
+        #first come first serve order. Hitory length and ownership strength stored in 
+        #the publisher's znode
+
         self.start_zk()
 
     def start_zk(self):
@@ -58,9 +63,10 @@ class Publisher:
             print(f"Broker IP changed to " + self.broker_ip)
             connect_str = "tcp://" + self.broker_ip + ":5555"
             self.registration_socket.connect(connect_str)
+            #REPLACING THIS PART WITH PERSISTENT ZNODE DATA STRUCTS:
             #re-register so that new broker knows what topics and pubs are subscribed
-            for topic in self.topics:
-                self.register(topic, self.topic_historylen_dict[topic])
+            #for topic in self.topics:
+            #    self.register(topic, self.topic_historylen_dict[topic])
 
 
     def register(self, topic, history_len):
@@ -80,18 +86,56 @@ class Publisher:
 
         if ("ACCEPT: Registered Pub" in rep_message):
             #Able to register to this topic
-            if (topic not in self.topics):
-                self.topics.append(topic)
-                self.topic_historylen_dict[topic] = history_len
-            print("Registry Accepted! Can now publish to topic '" + topic + "'")
-            #Get type of socket from response if not already determined
+            #Persist data in zookeeper and self
+
+            self.persist_accepted_registration(topic, history_len)
             if self.option is None:
                 self.option = int(rep_message[-1])
+
+            print("Registry Accepted! Can now publish to topic '" + topic + "'")
+            #Get type of socket from response if not already determined
+            
         else:
             print("Error. Response: " + rep_message)
         #Need to reconnect pub sockets
         self.connect_register_socket() 
     
+    #persist necessary information in zookeeper and self
+    #structure should be: /topics -> /topic_name -> /publisher_name
+    def persist_accepted_registration(self, topic, history_len):
+        topic_path_str = self.topics_path + "/" + topic
+        #if no '/topics' has been created yet we need to create 
+        if not self.zk.exists(self.topics_path):
+            self.zk.create(self.topics_path, ephemeral=False)
+        
+        topics = self.zk.get_children(self.topics_path)
+
+        print("Current topics: " + ','.join(topics))
+
+        if (len(topics) == 0 or topic not in topics):
+            self.zk.create(topic_path_str, ephemeral=False)
+
+        current_pubs = self.zk.get_children(topic_path_str)
+        print("Current Pubs: " + ','.join(current_pubs))
+        if self.ip not in current_pubs:
+            #create new znode; name = self.ip, data = ownership_strength:history_len
+            ownership_strength = len(current_pubs)+1
+            new_value = str(ownership_strength) + ':' + str(history_len)
+            new_path = topic_path_str + "/" + self.ip
+            self.zk.create(new_path , ephemeral=True, value=new_value.encode('utf-8'))
+
+        if (topic not in self.topics):
+                self.topics.append(topic)
+                self.topic_historylen_dict[topic] = history_len
+
+        
+
+        
+
+
+
+
+
     def create_publishing_socket1(self):
         self.publishing_socket = self.context.socket(zmq.REQ)
         connect_str = "tcp://" + self.broker_ip + ":5556"
