@@ -290,7 +290,7 @@ def main():
     #test that this stuff works
     if (validate_input()):
         test_subscriber = Subscriber(sys.argv[1])
-        test_subscriber.register('t1', 5)
-        test_subscriber.register('t2', 3)
+        test_subscriber.register('test1', 5)
+        test_subscriber.register('test2', 3)
         test_subscriber.start()
 main()
