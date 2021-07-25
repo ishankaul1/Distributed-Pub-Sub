@@ -2,9 +2,10 @@ import time
 import sys
 import zmq
 from kazoo.client import KazooClient
+from zmq.sugar.constants import NULL
 
 class Subscriber:
-    def __init__(self, zookeeper_ip, topic):
+    def __init__(self, zookeeper_ip, topic, history):
         self.context = zmq.Context()
 
         #print("Connecting to broker...")
@@ -15,15 +16,15 @@ class Subscriber:
         self.registration_socket = None #map each broker address to the socket connected to it
         self.broker_ip = "" #hardcoded for now; should be ip of the host that is running the broker application
         self.topic = topic
+        self.history = history
         self.zookeeper_ip = zookeeper_ip #change to pass this in from cmd line
-
+        self.pub_select = ""
         self.broker_znode = "/broker"
         self.zk = self.start_zkclient(zookeeper_ip)
         self.subscribing_socket = None #used in opt1
-        
-
-        
+        self.topic_path = "/topic"
         self.connection_cut = False
+        self.publishers = {}
         #connect_str = "tcp://" + self.broker_ip + ":5555"
         #self.register_socket.connect(connect_str)
         self.subscribing_sockets = None #used in opt2
@@ -41,11 +42,24 @@ class Subscriber:
     def start(self):
         print("Starting subscription")
         #look for broker ip
+        self.get_publisher_data()
         if (self.zk.exists(self.broker_znode)):
             #print(self.zk.get(self.broker_znode))
             self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
             print("Received broker ip from zookeeper: " + self.broker_ip)
             self.register()
+    
+    def get_publisher_data(self):
+        print("Getting publisher data from ZK")
+        topics = self.zk.get_children(self.topic_path)
+        for t in topics:
+            if t == self.topic:
+                pubs = self.zk.get_children(self.topic_path + '/' + t)
+                for p in pubs:
+                    data = self.zk.get(self.topic_path + '/' + t + '/' + p)[0].decode('utf-8')
+                    self.publishers[p] = {'History': data.split(',')[0], 'Strength': data.split(',')[1]}
+        print("List of publishers for topic " + self.topic + ': ')
+        print(self.publishers)
             
 
     def watch_broker_znode_change(self):
@@ -83,9 +97,13 @@ class Subscriber:
             if("2" in rep_message):
                 #option 2
                 print("Connecting to publishers with option 2")
-                publisher_list_raw = rep_message.split('\n')[1]
-                publishers = self.parse_publisher_list(publisher_list_raw)
-                self.subscribe_listen2(self.broker_ip, self.topic, publishers)
+                publisher_list_raw = self.publishers.keys()
+                self.pub_select = self.parse_publisher_list(publisher_list_raw)
+                if self.pub_select != NULL:
+                    self.subscribe_listen2(self.broker_ip, self.topic, self.pub_select)
+                else:
+                    print("No publisher selected from list")
+                    sys.exit(1)
             else:
                 #option 1
                 print("Connecting to broker with option 1")
@@ -135,15 +153,7 @@ class Subscriber:
             print(publishers)
             for pub_ip in publishers: 
                 self.add_pub_opt2(pub_ip)
-                #new_socket = self.context.socket(zmq.SUB)
-                #connect_str = "tcp://" + pub_ip + ":5556"
-                #new_socket.connect(connect_str)
-                #new_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
-                #self.poller.register(new_socket, zmq.POLLIN)
-                #self.subscribing_sockets[pub_ip] = new_socket
-                #print("Connected a new subscribing socket to publisher " + pub_ip)
-        #event loop - listen on notif socket + all subscribing sockets
-        while self.zk.get(self.broker_znode)[0].decode('utf-8') == broker_ip:
+        while self.zk.exists(self.topic_path + '/' + self.topic + '/' + self.pub_select):
             events = dict(self.poller.poll())
             print(events)
             #receive notification event
@@ -153,8 +163,13 @@ class Subscriber:
             for pub_ip in self.subscribing_sockets:
                 if self.subscribing_sockets[pub_ip] in events:
                     self.recv_sub_socket(self.subscribing_sockets[pub_ip])
-        self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
-        self.subscribe_listen2(self.broker_ip, topic, publishers) 
+        publisher_list_raw = self.publishers.keys()
+        self.pub_select = self.parse_publisher_list(publisher_list_raw)
+        if self.pub_select != NULL:
+            self.subscribe_listen2(self.broker_ip, self.topic, self.pub_select)
+        else:
+            print("No publisher selected from list")
+            sys.exit(1) 
 
     #TODO: option 2 - receive notification of new publisher on notification socket
     def recv_notification(self):
@@ -189,13 +204,11 @@ class Subscriber:
         print(message.split(':'))
     
     def parse_publisher_list(self, publisher_list_raw):
-        if (',' in publisher_list_raw):
-            #multiple
-            publishers = publisher_list_raw.split(',')
-        else:
-            publishers = [publisher_list_raw]
-
-        return publishers
+        for p in publisher_list_raw:
+            if self.publishers[p]['History'] >= self.history:
+                return p
+        print("No publishers with matched with history threshold")
+        return NULL
 
     def run():
         if self.validate_input():
@@ -203,8 +216,8 @@ class Subscriber:
 
 
 def validate_input():
-        usage = "python3 subscriber.py <zookeeper ip> <topic to subscribe>"
-        if len(sys.argv) < 2:
+        usage = "python3 subscriber.py <zookeeper ip> <topic to subscribe> <history>"
+        if len(sys.argv) < 3:
             print(usage)
             sys.exit(1)
         return True
@@ -212,6 +225,6 @@ def validate_input():
 def main():
     #test that this stuff works
     if (validate_input()):
-        test_subscriber = Subscriber(sys.argv[1], sys.argv[2])
+        test_subscriber = Subscriber(sys.argv[1], sys.argv[2], sys.argv[3])
         test_subscriber.start()
 main()
