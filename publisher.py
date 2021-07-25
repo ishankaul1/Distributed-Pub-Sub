@@ -120,7 +120,7 @@ class Publisher:
         if self.ip not in current_pubs:
             #create new znode; name = self.ip, data = ownership_strength:history_len
             ownership_strength = len(current_pubs)+1
-            new_value = str(ownership_strength) + ':' + str(history_len)
+            new_value = str(ownership_strength) + ',s' + str(history_len)
             new_path = topic_path_str + "/" + self.ip
             self.zk.create(new_path , ephemeral=True, value=new_value.encode('utf-8'))
 

@@ -16,7 +16,7 @@ class Subscriber:
         self.broker_ip = "" #hardcoded for now; should be ip of the host that is running the broker application
         #self.topic = topic
         self.zookeeper_ip = zookeeper_ip #change to pass this in from cmd line
-        self.topic_path = "/topic"
+        self.topic_path = "/topics"
         self.broker_znode = "/broker"
         self.publishers = {}
         #self.subscribing_socket = None #used in opt1
