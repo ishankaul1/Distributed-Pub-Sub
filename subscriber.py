@@ -16,8 +16,9 @@ class Subscriber:
         self.broker_ip = "" #hardcoded for now; should be ip of the host that is running the broker application
         #self.topic = topic
         self.zookeeper_ip = zookeeper_ip #change to pass this in from cmd line
-
+        self.topic_path = "/topic"
         self.broker_znode = "/broker"
+        self.publishers = {}
         #self.subscribing_socket = None #used in opt1
         self.history_len = {} #map topics to history length
 
@@ -64,9 +65,19 @@ class Subscriber:
             self.subscribe_listen2()
         else:
             print("Can't start; please register a topic first")
-        
-            
-
+    
+    def get_publisher_data(self):
+        print("Getting publisher data from ZK")
+        topics = self.zk.get_children(self.topic_path)
+        for t in topics:
+            if t == self.topic:
+                pubs = self.zk.get_children(self.topic_path + '/' + t)
+                for p in pubs:
+                    data = self.zk.get(self.topic_path + '/' + t + '/' + p)[0].decode('utf-8')
+                    self.publishers[p] = {'History': data.split(',')[0], 'Strength': data.split(',')[1]}
+        print("List of publishers for topic " + self.topic + ': ')
+        print(self.publishers)
+    
     def watch_broker_znode_change(self):
         @self.zk.DataWatch(self.broker_znode)
         def reconnect_broker(data, stat):
@@ -85,7 +96,8 @@ class Subscriber:
         if (history_len < 1):
             print("Cannot receive a history of length < 1")
             return
-        
+        self.topic = topic
+        self.get_publisher_data()
 
         #send connection message to broker. Format: "SUB <topic> <my_ip>"
         req_str = "SUB " + topic
@@ -104,37 +116,23 @@ class Subscriber:
                 if (self.option is None):
                     self.option = 2
                 print("Connecting to broker option 2 with topic '" + topic + "'")
-                publisher_list_raw = rep_message.split('\n')[1]
-                publishers = self.parse_publisher_list(publisher_list_raw)
-
-                if len(publishers) == 0:
-                    print("No publishers on topic... try registering again")
-                    return
+                publisher_list_raw = self.publishers.keys()
+                self.pub_select = self.parse_publisher_list(publisher_list_raw)
+                if self.pub_select != Null:
+                    self.subscribe_listen2(self.broker_ip, self.topic, self.pub_select)
+                else:
+                    print("No publisher selected from list")
+                    sys.exit(1)
 
                 #put each publisher in subscribing socket and publisher mappingif doesn't already exist
                 if topic not in self.subscribing_sockets:
                     #create new socket, then connect new socket to each publisher not already in publisher list
                     self.subscribing_sockets[topic] = []
                     new_socket = self.context.socket(zmq.SUB)
-                    for pub_ip in publishers:
-                        connect_str = "tcp://" + pub_ip + ":5556"
-                        new_socket.connect(connect_str)
+                    connect_str = "tcp://" + self.pub_select + ":5556"
+                    new_socket.connect(connect_str)
                     new_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
                     self.poller.register(new_socket, zmq.POLLIN)
-                    self.subscribing_sockets[topic] = new_socket
-                    self.publishers[topic] = publishers
-                else:
-                    #some pubs have already been created
-                    new_publishers = [pub for pub in publishers if pub not in self.publishers[topic]]
-                    socket = self.subscribing_sockets[topic]
-                    for pub_ip in new_publishers:
-                        connect_str = "tcp://" + pub_ip + ":5556"
-                        socket.connect(connect_str)
-                        self.publishers[topic].append(pub_ip)
-                    
-                    
-
-
             else:
                 #option 1
                 if (self.option is None):
@@ -201,36 +199,23 @@ class Subscriber:
         #create poller and register notification socket with it
         #self.poller = zmq.Poller()
         self.poller.register(self.notification_socket, zmq.POLLIN)
-        # if (len(publishers) == 0):
-        #     print("No publishers currently  available on topic " + topic)
-        #     #publishers = publisher_list_raw
-        # else:
-        #     TODO: create subscribing socket dict for each publisher returned <key=publisher_ip, value=socket, poll in with each of them, then listen for all including the notification socket, even if there was no publishers
-        #    #publishers = self.parse_publisher_list(publisher_list_raw)
-        #     print("PUBLISHERS:")
-        #     print(publishers)
-        #     for pub_ip in publishers: 
-        #         self.add_pub_opt2(pub_ip)
-                #new_socket = self.context.socket(zmq.SUB)
-                #connect_str = "tcp://" + pub_ip + ":5556"
-                #new_socket.connect(connect_str)
-                #new_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
-                #self.poller.register(new_socket, zmq.POLLIN)
-                #self.subscribing_sockets[pub_ip] = new_socket
-                #print("Connected a new subscribing socket to publisher " + pub_ip)
-        #event loop - listen on notif socket + all subscribing sockets
-        while self.zk.get(self.broker_znode)[0].decode('utf-8') == self.broker_ip:
+        while self.zk.exists(self.topic_path + '/' + self.topic + '/' + self.pub_select):
             events = dict(self.poller.poll())
             print(events)
             #receive notification event
             if (self.notification_socket in events):
-                self.recv_notification()
+                publishers = self.recv_notification()
             #receive on each subscribing socket 
-            for topic in self.subscribing_sockets:
-                if self.subscribing_sockets[topic] in events:
-                    self.recv_sub_socket(self.subscribing_sockets[topic], topic)
-        self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
-        self.subscribe_listen2() 
+            for pub_ip in self.subscribing_sockets:
+                if self.subscribing_sockets[pub_ip] in events:
+                    self.recv_sub_socket(self.subscribing_sockets[pub_ip])
+        publisher_list_raw = self.publishers.keys()
+        self.pub_select = self.parse_publisher_list(publisher_list_raw)
+        if self.pub_select != NULL:
+            self.subscribe_listen2(self.broker_ip, self.topic, self.pub_select)
+        else:
+            print("No publisher selected from list")
+            sys.exit(1) 
 
     #TODO: option 2 - receive notification of new publisher on notification socket
     def recv_notification(self):
@@ -283,13 +268,11 @@ class Subscriber:
             print(','.join(data))
     
     def parse_publisher_list(self, publisher_list_raw):
-        if (',' in publisher_list_raw):
-            #multiple
-            publishers = publisher_list_raw.split(',')
-        else:
-            publishers = [publisher_list_raw]
-
-        return publishers
+        for p in publisher_list_raw:
+            if self.publishers[p]['History'] >= self.history:
+                return p
+        print("No publishers with matched with history threshold")
+        return NULL
 
     #def run():
     #    if self.validate_input():
@@ -307,7 +290,7 @@ def main():
     #test that this stuff works
     if (validate_input()):
         test_subscriber = Subscriber(sys.argv[1])
-        test_subscriber.register('test1', 5)
-        test_subscriber.register('test2', 3)
+        test_subscriber.register('t1', 5)
+        test_subscriber.register('t2', 3)
         test_subscriber.start()
 main()
