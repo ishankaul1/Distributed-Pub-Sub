@@ -117,8 +117,8 @@ class Subscriber:
                     self.option = 2
                 print("Connecting to broker option 2 with topic '" + topic + "'")
                 publisher_list_raw = self.publishers.keys()
-                self.pub_select = self.parse_publisher_list(publisher_list_raw)
-                if self.pub_select != Null:
+                self.pub_select = self.parse_publisher_list(publisher_list_raw, topic)
+                if self.pub_select != None:
                     self.subscribe_listen2(self.broker_ip, self.topic, self.pub_select)
                 else:
                     print("No publisher selected from list")
@@ -157,8 +157,6 @@ class Subscriber:
 
     def subscribe_listen1(self):
         print("Now Listening to " + self.broker_ip + " for all registered topics")
-        print("Topics: " + ','.join(self.topics) + "\n")
-        #connect_str = "tcp://" + self.broker_ip + ":5557"
         #self.subscribing_socket.connect(connect_str)
         #self.subscribing_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
         while self.zk.get(self.broker_znode)[0].decode('utf-8') == self.broker_ip:
@@ -210,7 +208,7 @@ class Subscriber:
                 if self.subscribing_sockets[pub_ip] in events:
                     self.recv_sub_socket(self.subscribing_sockets[pub_ip])
         publisher_list_raw = self.publishers.keys()
-        self.pub_select = self.parse_publisher_list(publisher_list_raw)
+        self.pub_select = self.parse_publisher_list(publisher_list_raw, self.topic)
         if self.pub_select != NULL:
             self.subscribe_listen2(self.broker_ip, self.topic, self.pub_select)
         else:
@@ -267,12 +265,12 @@ class Subscriber:
             print("Data received from topic '" + topic + "':")
             print(','.join(data))
     
-    def parse_publisher_list(self, publisher_list_raw):
+    def parse_publisher_list(self, publisher_list_raw, topic):
         for p in publisher_list_raw:
-            if self.publishers[p]['History'] >= self.history:
+            if int(self.publishers[p]['History']) >= int(self.history_len[topic]):
                 return p
         print("No publishers with matched with history threshold")
-        return NULL
+        return None
 
     #def run():
     #    if self.validate_input():
