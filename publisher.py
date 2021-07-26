@@ -120,21 +120,13 @@ class Publisher:
         if self.ip not in current_pubs:
             #create new znode; name = self.ip, data = ownership_strength:history_len
             ownership_strength = len(current_pubs)+1
-            new_value = str(ownership_strength) + ',s' + str(history_len)
+            new_value = str(ownership_strength) + ',' + str(history_len)
             new_path = topic_path_str + "/" + self.ip
             self.zk.create(new_path , ephemeral=True, value=new_value.encode('utf-8'))
 
         if (topic not in self.topics):
                 self.topics.append(topic)
                 self.topic_historylen_dict[topic] = history_len
-
-        
-
-        
-
-
-
-
 
     def create_publishing_socket1(self):
         self.publishing_socket = self.context.socket(zmq.REQ)
@@ -170,7 +162,7 @@ class Publisher:
             window_data = ','.join(self.topic_rollinghistory_dict[topic])
         
         #Sending data to be published
-        pub_str = topic + ":" + window_data
+        pub_str = topic + ":" + self.ip + ":" window_data
         print("Publishing topic: " + topic + " and data: " + window_data)
         self.publishing_socket.send_string(pub_str)
         #recreate publishing socket
