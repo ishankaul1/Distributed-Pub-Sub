@@ -231,33 +231,51 @@ class Subscriber:
 
     def subscribe_listen1(self):
         print("Now Listening to " + self.broker_ip + " for all registered topics")
-        print("Topics: " + ','.join(self.topics) + "\n")
+        print("Topics: " + ','.join(self.topic_publisher_data.keys()) + "\n")
         #connect_str = "tcp://" + self.broker_ip + ":5557"
         #self.subscribing_socket.connect(connect_str)
         #self.subscribing_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
         while self.zk.get(self.broker_znode)[0].decode('utf-8') == self.broker_ip:
             time.sleep(10)
+            recalcTopics = []
+            for topic in self.topic_publisher_data:
+                if self.active_publishers[topic] is not None and not self.zk.exists(self.topic_path + '/' + topic + '/' + self.active_publishers[topic]):
+                    recalcTopics.append(topic)
+                elif len(self.zk.get_children(self.topic_path + '/' + topic)) != len(self.topic_publisher_data[topic].keys()):
+                    recalcTopics.append(topic)
+            if len(recalcTopics) > 0:
+                break
             try:
                 subs_data = self.subscribing_socket.recv_string( flags = zmq.NOBLOCK )
-                topic, raw_data = subs_data.split(':')
-                if (',' in raw_data):
-                    data = raw_data.split(',')
-                else:
-                    data = [raw_data]
-                if (len(raw_data) < self.history_len[topic]):
-                    #publisher sending less history than we're asking for; just take it all
-                    print("Data received from topic '" + topic + "':")
-                    print(','.join(data))
-                else:
+                topic, ip,  raw_data = subs_data.split(':')
+                if (self.active_publishers[topic] == ip):
+                    if (',' in raw_data):
+                        data = raw_data.split(',')
+                    else:
+                        data = [raw_data]
                     #must only keep the last 'history_len' values
                     data = data[-self.history_len[topic]:]
-                    print("Data received from topic '" + topic + "':")
+                    print("Data received from topic '" + topic + "' and publisher '" + ip + "':")
                     print(','.join(data))
 
             except zmq.ZMQError as e:
                 if e.errno == zmq.EAGAIN:
                     pass
-        self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
+        if self.zk.get(self.broker_znode)[0].decode('utf-8') != self.broker_ip:
+            self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
+
+        if len(recalcTopics != 0):
+            for topic in recalcTopics:
+                self.get_publisher_data(topic)
+                self.active_publishers[topic] = self.calc_new_publisher(topic)
+                if self.active_publishers[topic] is not None:
+                    connect_str = "tcp://" + self.active_publishers[topic] + ":5557"
+                    self.subscribing_sockets[topic].connect(connect_str)
+                    print("Now listening to publisher " + self.active_publishers[topic] + " on topic " + topic)
+                else:
+                    print("No active publisher on topic " + topic)
+
+        
         self.subscribe_listen1()
     
     def subscribe_listen2(self):
@@ -352,20 +370,25 @@ class Subscriber:
     def recv_sub_socket(self, socket, topic):
         subs_data = socket.recv_string(zmq.DONTWAIT)
         print(subs_data)
-        topic,raw_data = subs_data.split(':')
+        topic, ip, raw_data = subs_data.split(':')
+
+        #skip if chosen publisher is not this one
+        if (self.active_publishers[topic] != ip):
+            return
+        
         if (',' in raw_data):
             data = raw_data.split(',')
         else:
             data = [raw_data]
-        if (len(raw_data) < self.history_len[topic]):
-            #publisher sending less history than we're asking for; just take it all
-            print("Data received from topic '" + topic + "':")
-            print(','.join(data))
-        else:
-            #must only keep the last 'history_len' values
-            data = data[-self.history_len[topic]:]
-            print("Data received from topic '" + topic + "':")
-            print(','.join(data))
+        # if (len(raw_data) < self.history_len[topic]):
+        #     #publisher sending less history than we're asking for; just take it all
+        #     print("Data received from topic '" + topic + "':")
+        #     print(','.join(data))
+        # else:
+        #must only keep the last 'history_len' values
+        data = data[-self.history_len[topic]:]
+        print("Data received from topic '" + topic + "':")
+        print(','.join(data))
     
     def parse_publisher_list(self, publisher_list_raw):
         for p in publisher_list_raw:
