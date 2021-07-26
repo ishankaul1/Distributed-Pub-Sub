@@ -122,7 +122,7 @@ class Subscriber:
 
         #take first publisher with higher history length than the one registered to said topic
         for pub in flat_pub_mapping:
-            if pub[1] > self.history_len[topic]:
+            if pub[1] >= self.history_len[topic]:
                 result = pub[0]
                 break
 
