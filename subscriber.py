@@ -173,6 +173,7 @@ class Subscriber:
                 #option 2
                 if (self.option is None):
                     self.option = 2
+
                 
                 self.active_publishers[topic] = self.calc_new_publisher(topic)
                 if self.active_publishers[topic] is not None:
@@ -231,6 +232,7 @@ class Subscriber:
 
     def subscribe_listen1(self):
         print("Now Listening to " + self.broker_ip + " for all registered topics")
+
         print("Topics: " + ','.join(self.topic_publisher_data.keys()) + "\n")
         #connect_str = "tcp://" + self.broker_ip + ":5557"
         #self.subscribing_socket.connect(connect_str)
@@ -311,6 +313,7 @@ class Subscriber:
             #if (self.notification_socket in events):
             #    publishers = self.recv_notification()
             #receive on each subscribing socket 
+
             for topic in self.subscribing_sockets:
                 if self.subscribing_sockets[topic] in events:
                     self.recv_sub_socket(self.subscribing_sockets[topic], topic)
@@ -390,9 +393,9 @@ class Subscriber:
         print("Data received from topic '" + topic + "':")
         print(','.join(data))
     
-    def parse_publisher_list(self, publisher_list_raw):
+    def parse_publisher_list(self, publisher_list_raw, topic):
         for p in publisher_list_raw:
-            if self.publishers[p]['History'] >= self.history:
+            if int(self.publishers[p]['History']) >= int(self.history_len[topic]):
                 return p
         print("No publishers with matched with history threshold")
         return None
@@ -413,7 +416,7 @@ def main():
     #test that this stuff works
     if (validate_input()):
         test_subscriber = Subscriber(sys.argv[1])
-        test_subscriber.register('t1', 5)
-        test_subscriber.register('t2', 3)
+        test_subscriber.register('test1', 5)
+        test_subscriber.register('test2', 3)
         test_subscriber.start()
 main()
