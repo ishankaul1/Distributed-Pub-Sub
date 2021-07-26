@@ -162,7 +162,7 @@ class Publisher:
             window_data = ','.join(self.topic_rollinghistory_dict[topic])
         
         #Sending data to be published
-        pub_str = topic + ":" + self.ip + ":" window_data
+        pub_str = topic + ":" + self.ip + ":" + window_data
         print("Publishing topic: " + topic + " and data: " + window_data)
         self.publishing_socket.send_string(pub_str)
         #recreate publishing socket
