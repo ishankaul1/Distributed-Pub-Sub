@@ -102,8 +102,9 @@ class Subscriber:
             for p in pubs:
                 data = self.zk.get(self.topic_path + '/' + topic + '/' + p)[0].decode('utf-8')
                 self.topic_publisher_data[topic][p] = {'history': data.split(',')[0], 'strength': data.split(',')[1]}
-        print("List of publishers for topic " + self.topic + ': ')
+        print("List of publishers for topic " + topic + ': ')
         print(self.topic_publisher_data[topic].keys())
+        print(self.topic_publisher_data[topic])
 
     #Decides which publisher to listen to based on the publisher data for that topic, then returns.
     def calc_new_publisher(self, topic):
@@ -117,12 +118,14 @@ class Subscriber:
             new_pub_row = [pub_ip, all_pubs[pub_ip]['history'], all_pubs[pub_ip]['strength']]
             flat_pub_mapping.append(new_pub_row)
 
+        print(topic + " mapping")
+        print(flat_pub_mapping)
         #sort by strength
-        flat_pub_mapping.sort(key=lambda x:x[2])
+        flat_pub_mapping.sort(key=lambda x:x[1])
 
         #take first publisher with higher history length than the one registered to said topic
         for pub in flat_pub_mapping:
-            if pub[1] >= self.history_len[topic]:
+            if int(pub[2]) >= self.history_len[topic]:
                 result = pub[0]
                 break
 
@@ -162,7 +165,7 @@ class Subscriber:
         self.registration_socket.send_string(req_str)
 
         rep_message = self.registration_socket.recv_string()
-
+        print(rep_message)
         if ("ACCEPT: Registered Sub" in rep_message):
             self.history_len[topic] = history_len
             self.get_publisher_data(topic)
@@ -204,7 +207,7 @@ class Subscriber:
                     self.option = 1
 
                 self.active_publishers[topic] = self.calc_new_publisher(topic)
-
+                print(self.active_publishers[topic])
                 if self.active_publishers[topic] is not None:
                     print("Connecting to broker option 1 with topic '" + topic + "'")
                     print("and publisher: " + self.active_publishers[topic])
@@ -212,6 +215,10 @@ class Subscriber:
                     #create new socket if doesn't exist. Using the same socket for all topics
                     if (self.subscribing_socket is None):
                         self.subscribing_socket = self.context.socket(zmq.SUB)
+                        print("P")
+                    
+                    print("SUBSCRIBING SOCKET SET")
+                    
                     connect_str = "tcp://" + self.broker_ip + ":5557"
                     self.subscribing_socket.connect(connect_str)
                     self.subscribing_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
@@ -219,7 +226,7 @@ class Subscriber:
                     print("Connected! Ready to start listening to " + topic)
 
                 else:
-                    print("No publisher found on topic " + topic + " with history len >= " + history_len)
+                    print("No publisher found on topic " + topic + " with history len >= " + str(history_len))
                     print("Try again later!\n")
 
 
