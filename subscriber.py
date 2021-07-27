@@ -101,7 +101,8 @@ class Subscriber:
             pubs = self.zk.get_children(self.topic_path + '/' + topic)
             for p in pubs:
                 data = self.zk.get(self.topic_path + '/' + topic + '/' + p)[0].decode('utf-8')
-                self.topic_publisher_data[topic][p] = {'history': data.split(',')[0], 'strength': data.split(',')[1]}
+                self.topic_publisher_data[topic][p] = {'history': data.split(',')[1], 'strength': data.split(',')[0]}
+
         print("List of publishers for topic " + topic + ': ')
         print(self.topic_publisher_data[topic].keys())
         print(self.topic_publisher_data[topic])
@@ -118,14 +119,15 @@ class Subscriber:
             new_pub_row = [pub_ip, all_pubs[pub_ip]['history'], all_pubs[pub_ip]['strength']]
             flat_pub_mapping.append(new_pub_row)
 
-        print(topic + " mapping")
-        print(flat_pub_mapping)
         #sort by strength
         flat_pub_mapping.sort(key=lambda x:x[1])
 
+        print(topic + " mapping")
+        print(flat_pub_mapping)
         #take first publisher with higher history length than the one registered to said topic
         for pub in flat_pub_mapping:
-            if int(pub[2]) >= self.history_len[topic]:
+            if int(pub[1]) >= self.history_len[topic]:
+
                 result = pub[0]
                 break
 
@@ -245,7 +247,7 @@ class Subscriber:
         #self.subscribing_socket.connect(connect_str)
         #self.subscribing_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
         while self.zk.get(self.broker_znode)[0].decode('utf-8') == self.broker_ip:
-            time.sleep(10)
+            #time.sleep(10)
             recalcTopics = []
             for topic in self.topic_publisher_data:
                 if self.active_publishers[topic] is not None and not self.zk.exists(self.topic_path + '/' + topic + '/' + self.active_publishers[topic]):
@@ -257,6 +259,7 @@ class Subscriber:
             try:
                 subs_data = self.subscribing_socket.recv_string( flags = zmq.NOBLOCK )
                 topic, ip,  raw_data = subs_data.split(':')
+                print("active pub: " + self.active_publishers[topic])
                 if (self.active_publishers[topic] == ip):
                     if (',' in raw_data):
                         data = raw_data.split(',')
@@ -273,13 +276,13 @@ class Subscriber:
         if self.zk.get(self.broker_znode)[0].decode('utf-8') != self.broker_ip:
             self.broker_ip = self.zk.get(self.broker_znode)[0].decode('utf-8')
 
-        if len(recalcTopics != 0):
+        if len(recalcTopics) != 0:
             for topic in recalcTopics:
                 self.get_publisher_data(topic)
                 self.active_publishers[topic] = self.calc_new_publisher(topic)
                 if self.active_publishers[topic] is not None:
                     connect_str = "tcp://" + self.active_publishers[topic] + ":5557"
-                    self.subscribing_sockets[topic].connect(connect_str)
+                    self.subscribing_socket.connect(connect_str)
                     print("Now listening to publisher " + self.active_publishers[topic] + " on topic " + topic)
                 else:
                     print("No active publisher on topic " + topic)
@@ -426,4 +429,4 @@ def main():
         test_subscriber.register('test1', 5)
         test_subscriber.register('test2', 3)
         test_subscriber.start()
-main()
+#main()
