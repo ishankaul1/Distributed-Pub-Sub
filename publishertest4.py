@@ -4,7 +4,7 @@ import time
 zkip = '10.0.0.1'
 test_publisher = Publisher(zkip)
 
-test_publisher.register('test1', 5)
+test_publisher.register('test1', 8)
 
 
 number = 100
