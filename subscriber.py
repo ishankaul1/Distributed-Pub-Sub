@@ -102,6 +102,7 @@ class Subscriber:
             for p in pubs:
                 data = self.zk.get(self.topic_path + '/' + topic + '/' + p)[0].decode('utf-8')
                 self.topic_publisher_data[topic][p] = {'history': data.split(',')[1], 'strength': data.split(',')[0]}
+
         print("List of publishers for topic " + topic + ': ')
         print(self.topic_publisher_data[topic].keys())
         print(self.topic_publisher_data[topic])
@@ -119,13 +120,14 @@ class Subscriber:
             flat_pub_mapping.append(new_pub_row)
 
         #sort by strength
-        flat_pub_mapping.sort(key=lambda x:x[2])
+        flat_pub_mapping.sort(key=lambda x:x[1])
 
         print(topic + " mapping")
         print(flat_pub_mapping)
         #take first publisher with higher history length than the one registered to said topic
         for pub in flat_pub_mapping:
             if int(pub[1]) >= self.history_len[topic]:
+
                 result = pub[0]
                 break
 
