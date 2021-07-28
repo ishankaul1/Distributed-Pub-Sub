@@ -103,9 +103,9 @@ class Subscriber:
                 data = self.zk.get(self.topic_path + '/' + topic + '/' + p)[0].decode('utf-8')
                 self.topic_publisher_data[topic][p] = {'history': data.split(',')[1], 'strength': data.split(',')[0]}
 
-        print("List of publishers for topic " + topic + ': ')
-        print(self.topic_publisher_data[topic].keys())
-        print(self.topic_publisher_data[topic])
+        #print("List of publishers for topic " + topic + ': ')
+        #print(self.topic_publisher_data[topic].keys())
+        #print(self.topic_publisher_data[topic])
 
     #Decides which publisher to listen to based on the publisher data for that topic, then returns.
     def calc_new_publisher(self, topic):
@@ -186,7 +186,7 @@ class Subscriber:
                     #We've found a publisher available on the topic. Now connect the socket
                     #associated to that topic to that publisher
                     print("Connecting to option 2 publishers with topic '" + topic + "'")
-                    print("and publisher: " + self.active_publishers[topic])
+                    print("and publisher: " + self.active_publishers[topic] + "\n")
                     
                     
                     self.subscribing_sockets[topic] = self.context.socket(zmq.SUB)
@@ -212,20 +212,20 @@ class Subscriber:
                 print(self.active_publishers[topic])
                 if self.active_publishers[topic] is not None:
                     print("Connecting to broker option 1 with topic '" + topic + "'")
-                    print("and publisher: " + self.active_publishers[topic])
+                    print("and publisher: " + self.active_publishers[topic] + "\n")
                     
                     #create new socket if doesn't exist. Using the same socket for all topics
                     if (self.subscribing_socket is None):
                         self.subscribing_socket = self.context.socket(zmq.SUB)
-                        print("P")
+                        #print("P")
                     
-                    print("SUBSCRIBING SOCKET SET")
+                    print("SUBSCRIBING SOCKET SET\n")
                     
                     connect_str = "tcp://" + self.broker_ip + ":5557"
                     self.subscribing_socket.connect(connect_str)
                     self.subscribing_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
                 #self.topics.append(topic)
-                    print("Connected! Ready to start listening to " + topic)
+                    print("Connected! Ready to start listening to " + topic + "\n")
 
                 else:
                     print("No publisher found on topic " + topic + " with history len >= " + str(history_len))
@@ -242,7 +242,7 @@ class Subscriber:
     def subscribe_listen1(self):
         print("Now Listening to " + self.broker_ip + " for all registered topics")
 
-        print("Topics: " + ','.join(self.topic_publisher_data.keys()) + "\n")
+        #print("Topics: " + ','.join(self.topic_publisher_data.keys()) + "\n")
         #connect_str = "tcp://" + self.broker_ip + ":5557"
         #self.subscribing_socket.connect(connect_str)
         #self.subscribing_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
@@ -259,7 +259,7 @@ class Subscriber:
             try:
                 subs_data = self.subscribing_socket.recv_string( flags = zmq.NOBLOCK )
                 topic, ip,  raw_data = subs_data.split(':')
-                print("active pub: " + self.active_publishers[topic])
+                #print("active pub: " + self.active_publishers[topic])
                 if (self.active_publishers[topic] == ip):
                     if (',' in raw_data):
                         data = raw_data.split(',')
@@ -407,7 +407,7 @@ class Subscriber:
         for p in publisher_list_raw:
             if int(self.publishers[p]['History']) >= int(self.history_len[topic]):
                 return p
-        print("No publishers with matched with history threshold")
+        print("No publishers with matched with history threshold on topic " + topic)
         return None
 
     #def run():
