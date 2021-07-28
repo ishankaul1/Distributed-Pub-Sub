@@ -120,7 +120,7 @@ class Subscriber:
             flat_pub_mapping.append(new_pub_row)
 
         #sort by strength
-        flat_pub_mapping.sort(key=lambda x:x[1])
+        flat_pub_mapping.sort(key=lambda x:x[2])
 
         print(topic + " mapping")
         print(flat_pub_mapping)
