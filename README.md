@@ -1,4 +1,4 @@
-# CS 6381 Project 3
+# Distributed Pub-Sub
 
 In this project, we extended our Topic-based fault-tolerant Pub/Sub broker from project 2 to implement history length and ownership strength quality of services for each topic.
 In our implementation, publishers must call the register api with a history length, which is then saved in zookeeper. Publishers can register to multiple topics at a time, and will be assigned an ownership strength based on what order they registered to a topic (eg - first one = 1, second one -2, etc.)
@@ -15,4 +15,4 @@ We created some unit tests to show that the quality of service works. The Python
 
 Once all the pubs/subs are connected, we test the workflow by killing off publishers, and checking subscribers' outputs to see which publisher they connected to for pubs on each topic that died. Output is currently logged directly to terminal; we apologize if it is a little tough to read.
 
-Latency tests/Graphs:
+To Do: Implement load balancing and Docker deployment of current system
