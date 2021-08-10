@@ -15,4 +15,4 @@ We created some unit tests to show that the quality of service works. The Python
 
 Once all the pubs/subs are connected, we test the workflow by killing off publishers, and checking subscribers' outputs to see which publisher they connected to for pubs on each topic that died. Output is currently logged directly to terminal; we apologize if it is a little tough to read.
 
-To Do: Implement load balancing and Docker deployment of current system
+To Do/Future work: Implement load balancing and automatic deployment of current system with Docker. Implement topic-wide history share.
