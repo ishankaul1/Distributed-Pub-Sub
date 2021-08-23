@@ -1,6 +1,6 @@
 # Distributed Pub-Sub
 
-In this project, we built a Topic-based Publisher-Subscriber system with the following properties:
+In this project, we built a Topic-based Publisher-Subscriber system using the Zookeeper and ZMQ libraries in Python with the following properties:
 
   1. Publisher-Subscriber anonymity. This is a basic property of the Publisher-Subscriber pattern, and is achieved by using the 'Publisher' and 'Subscriber' class middlewares, which would run on different hosts and allow client application connections to join our system. Publisher and Subscriber applications and middlewares can join or leave the system at any time without breaking functionality of the whole system. Client applications would connect directly to the middlewares to join the system.
 	
@@ -18,5 +18,6 @@ Opportunities for enhancements and optimizations:
   3. We would like to implement a load-balancing system for the brokers. We currently have fault tolerance, but an additional layer of backup Brokers with multiple actives at the same time would greatly increase the scalability of this system. 
   4. It is part of our intended design that brokers should not be started with different dissemination options in the same network. However, since we configure dissemination option at the individual runtime of the broker instances, this rule is not actually enforced. A global configuration of brokers for both dissemination option and number of copies would make this system far more robust. In addition to this and load balancing, we would like to create an 'auto-scaling' feature, where brokers automatically scale up or down depending on network traffic.
   5. The different options for broker dissemination should be separated by class inheritance, instead of if-statements sprawled throughout our code. We implemented it like this for lack of time during our Distributed Systems semseter, but this is a huge detriment to readability, is plain bad design, and takes away from the ability to continue incremental work on this project. This is likely the first feature we will implement. We plan on refactoring the plain Broker, Publisher, and Subscriber class to be abstract, then having one subclass of each for each dissemination option. Publisher, Subscriber, and Broker will each have a factory class as well, and should be separated into different packages to enhance readability of the directory structure.
+  6. Some of the sockets on subscriber side will remain open even if not being used. We should create a system for closing these out.
 
 We are always open to feedback and ideas on how to improve this project. Please feel free to email ishankaul2000@gmail.com or ishan.kaul@Vanderbilt.edu for any questions or comments. Thanks for taking the time to read!
