@@ -2,7 +2,7 @@
 
 In this project, we built a Topic-based Publisher-Subscriber system using the Zookeeper and ZMQ libraries in Python with the following properties:
 
-  1. Publisher-Subscriber anonymity. This is a basic property of the Publisher-Subscriber pattern, and is achieved by using the 'Publisher' and 'Subscriber' class middlewares, which would run on different hosts and allow client application connections to join our system. Publisher and Subscriber applications and middlewares can join or leave the system at any time without breaking functionality of the whole system. Client applications would connect directly to the middlewares to join the system.
+  1. Publisher-Subscriber decoupling. This is a basic property of the Publisher-Subscriber pattern, and is achieved by using the 'Publisher' and 'Subscriber' class middlewares, which would run on different hosts and allow client application connections to join our system. Publisher and Subscriber applications and middlewares can join or leave the system at any time without breaking functionality of the whole system. Client applications would connect directly to the middlewares to join the system.
 	
   2. "Topic" subscriptions. Each Publisher or Subscriber can register to one or more 'Topic's. Subscribers will only receive data from topics they are registered to, while Publishers will only send messages to the topics they are registered to. Both Publishers and Subscribers must register to at least one topic before they join the system.
   
